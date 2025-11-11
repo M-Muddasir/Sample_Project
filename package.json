@@ -1,0 +1,31 @@
+{
+  "name": "sample-project",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@payloadcms/db-postgres": "^3.0.0",
+    "dotenv": "16.4.5",
+    "next": "14.2.11",
+    "openai": "4.63.0",
+    "payload": "^3.0.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "swagger-ui": "^5.30.2",
+    "swagger-ui-react": "^5.30.2"
+  },
+  "devDependencies": {
+    "@types/node": "20.12.12",
+    "@types/react": "19.2.2",
+    "typescript": "5.6.3",
+    "tailwindcss": "^3.4.14",
+    "postcss": "^8.4.47",
+    "autoprefixer": "^10.4.20"
+  }
+}
