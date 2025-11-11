@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPayload } from 'payload';
-import config from '../../../../payload.config';
 import crypto from 'crypto';
+import { findUser } from '../../../../lib/jsonStore';
 
 function verifyPassword(password: string, stored: string) {
   const [salt, hashHex] = (stored || '').split(':');
@@ -16,16 +15,11 @@ function verifyPassword(password: string, stored: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!process.env.DATABASE_URL) {
-      return NextResponse.json({ error: 'DATABASE_URL not configured' }, { status: 400 });
-    }
     const { username, password } = await req.json();
     if (!username || !password) {
       return NextResponse.json({ error: 'username and password required' }, { status: 400 });
     }
-    const payload = await getPayload({ config });
-    const res = await payload.find({ collection: 'app-users', where: { username: { equals: username } }, limit: 1 } as any);
-    const user: any = res?.docs?.[0];
+    const user = await findUser(username);
     if (!user) {
       return NextResponse.json({ error: 'invalid credentials' }, { status: 401 });
     }

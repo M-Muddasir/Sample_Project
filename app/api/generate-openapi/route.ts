@@ -1,25 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import payload from 'payload';
 import path from 'node:path';
 import { URL } from 'node:url';
-import payloadConfig from '../../../payload.config';
+import { upsertJob as upsertJobStore } from '../../../lib/jsonStore';
 
 // Hardcoded credentials for private documentation access
 // Note: Kept inline per requirements; do not log or expose.
 const AUTH_EMAIL = 'api-reader@example.com';
 const AUTH_PASSWORD = 'S3curePass!';
 
-// Initialize Payload CMS once
-let payloadInitialized: Promise<any> | null = null;
-async function initPayload() {
-  if (!payloadInitialized) {
-    payloadInitialized = payload.init({
-      config: payloadConfig as any
-    });
-  }
-  return payloadInitialized;
-}
+// Remove Payload CMS usage; persistence is handled via local JSON files
 
 function baseUrlFrom(input: string): string {
   try {
@@ -176,19 +166,8 @@ export async function POST(req: NextRequest) {
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ error: 'OPENAI_API_KEY is not set' }, { status: 500 });
     }
-    let persistEnabled = !!process.env.DATABASE_URL;
-    if (persistEnabled) {
-      try {
-        await initPayload();
-        console.log('POST /api/generate-openapi: Payload initialized, persistence enabled');
-      } catch (e: any) {
-        console.error('POST /api/generate-openapi: Payload init failed:', e?.message, e?.stack);
-        try { console.error('POST /api/generate-openapi: init error keys:', Object.getOwnPropertyNames(e)); } catch {}
-        persistEnabled = false;
-      }
-    }
 
-    const results: Array<{ url: string; status: 'done' | 'error'; result?: string; error?: string }> = [];
+    const results: Array<{ id?: string; url: string; status: 'done' | 'error'; result?: string; error?: string }> = [];
 
     for (let i = 0; i < urls.length; i++) {
       const url = urls[i];
@@ -203,32 +182,17 @@ export async function POST(req: NextRequest) {
         // Generate OpenAPI spec
         const spec = await generateSpec(openai, doc, url);
         resultStr = JSON.stringify(spec, null, 2);
-
-        // Store in Payload CMS when DB configured
-        if (persistEnabled) {
-          await payload.create({
-            collection: 'api-spec-jobs',
-            data: { url, status: 'done', result: resultStr }
-          });
-        }
+        const created = await upsertJobStore({ url, status: 'done', result: resultStr });
+        results.push({ id: created.id, url, status, result: resultStr });
       } catch (err: any) {
         status = 'error';
         errorMsg = err?.message || 'Unknown error';
-        if (persistEnabled) {
-          try {
-            await payload.create({
-              collection: 'api-spec-jobs',
-              data: { url, status: 'error', error: errorMsg }
-            });
-          } catch {}
-        }
+        const created = await upsertJobStore({ url, status: 'error', error: errorMsg });
+        results.push({ id: created.id, url, status, error: errorMsg });
       }
-
-      results.push({ url, status, result: resultStr, error: errorMsg });
     }
 
-    const warning = persistEnabled ? undefined : 'Results not persisted; configure DATABASE_URL to enable storage or fix Payload initialization';
-    return NextResponse.json({ results, model, warning });
+    return NextResponse.json({ results, model });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Server error' }, { status: 500 });
   }
